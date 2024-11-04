@@ -23,21 +23,29 @@ s_shield = 0.00
 def get_intraday_data(stock_name, interval):
 
     header = config['headers']['vietstock']['header_0']
-    url = config['urls']['vietstock']['history'] + stock_name + '&resolution=' + interval + '&from=' + str(starttime) + '&to=' + str(endtime)        
-    response = requests.get(url, headers = header)
 
-    if response.status_code == 200:
-        data = response.json()
-        df = pd.DataFrame(data)
+    his_url = config['urls']['history']['vietstock'] + stock_name + '&resolution=' + interval + '&from=' + str(starttime) + '&to=' + str(endtime)
+    last_url = config['urls']['last']['vps'] + 'VN30F2411'
+
+    his_response = requests.get(his_url, headers = header)
+    last = requests.get(last_url).json()[-1]['last_price']
+
+    if his_response.status_code == 200:
+        his_data = his_response.json()
+        df = pd.DataFrame(his_data)
+        df.loc[len(df)] = {'t': endtime,'o': last,'l': last,'h': last,'c': last,'v': 0, 's': 'ok'}
+        
         df['time'] = df['t'].apply(lambda x: dt.datetime.fromtimestamp(x).strftime('%H:%M'))
-        df['average'] = df[['h', 'l', 'o', 'c']].mean(axis=1)
-        df['HullMA_Short'] = round(ta.hma(df['average'], length=buy_period), 1)
-        df['HullMA_Long'] = round(ta.hma(df['average'], length=sell_period), 1)
-        df['average'] = round(df['average'], 1)
+        df['a'] = df[['h', 'l', 'o', 'c']].mean(axis=1)
+
+        df['HullMA_Short'] = round(ta.hma(df['a'], length=buy_period), 1)
+        df['HullMA_Long'] = round(ta.hma(df['a'], length=sell_period), 1)
+        
+        df['a'] = round(df['a'], 1)
 
         conditions = [
-            ((df['average'] - b_shield) > df['HullMA_Short']) & ((df['average'] - b_shield) > df['HullMA_Long']),  # Buy
-            ((df['average'] + s_shield) < df['HullMA_Long'])  # Sell
+            ((df['a'] - b_shield) > df['HullMA_Short']) & ((df['a'] - b_shield) > df['HullMA_Long']),  # Buy
+            ((df['a'] + s_shield) < df['HullMA_Long'])  # Sell
         ]
         choices = [1, -1] # Define choices corresponding to the conditions: 1 for buy, -1 for sell
         df['Signal'] = np.select(conditions, choices, default=0)
@@ -53,24 +61,25 @@ st.set_page_config(page_title="Intraday Stock Price Tracker", layout="wide")
 # Function to fetch data for a specific stock symbol
 #@st.cache_data(ttl=60)  # Cache the data for 60 seconds
 
-# Function to render chart
-#def render_chart(data):
-#    st.line_chart(data[['t', 'c']].set_index('t'))
+intraday = get_intraday_data('VN30F1M', '1')
+data = intraday.tail(90)
 
-# JavaScript code to auto-refresh the specific component every 60 seconds
+line_chart = alt.Chart(data).mark_line(point=True).encode(
+    x=alt.X('time:O', title=''),
+    y=alt.Y('a:Q', title='Price').scale(zero=False), # Set custom order for Y-axis
+    tooltip=[alt.Tooltip('time:O'), alt.Tooltip('a:Q', title='Price'),]
+).properties(
+    width=800,  # Customize the width
+    height=600  # Customize the height
+)
+st.altair_chart(line_chart, use_container_width=True)
 
-# Display stock data
-st.title("Intraday Stock Price Tracker for AAPL")
-st.write("Auto-refreshing every 60 seconds")
+auto_refresh_code = """
+    <script>
+        setInterval(() => {
+            window.location.reload();
+            }, 60000);
+    </script>
+"""
 
-# Placeholder for the chart
-#chart_placeholder = st.empty()
-
-# Load data and render the chart initially
-data = get_intraday_data('VN30F1M', '1')
-st.write(data)
-#with chart_placeholder:
-#    render_chart(data)
-
-# Inject the JavaScript for auto-refresh
-#st.components.v1.html(auto_refresh_code)
+st.components.v1.html(auto_refresh_code)

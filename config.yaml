@@ -16,8 +16,12 @@ Equity:
     - MWG
 
 urls:  
-  vietstock:
-    'history': 'https://api.vietstock.vn/tvnew/history?symbol='
+  history:
+    'vietstock': 'https://api.vietstock.vn/tvnew/history?symbol='
+  last:
+    'hsc': 'https://marketapi-uat-internal.hsc.com.vn/v1/lasts?tickers='
+    'ssi': 'https://iboard-query.ssi.com.vn/v2/stock/'
+    'vps': 'https://bgapidatafeed.vps.com.vn/getpsalldatalsnapshot/'
 
 headers:
   vietstock:
